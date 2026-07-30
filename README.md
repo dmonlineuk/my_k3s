@@ -9,6 +9,7 @@ A strong first layout for your server:
 | K3s control-plane + etcd | 3     | 2–4 vCPU, 8 GB RAM, SSD/NVMe     |
 | Worker                   | 2     | 6–8 vCPU, 16–24 GB RAM, SSD/NVMe |
 | HAProxy load balancers   | 2     | 1 vCPU, 1 GB RAM                 |
+
 This is now as follows:
 
 | Machine       | IP              | Setup                       |
@@ -20,6 +21,7 @@ This is now as follows:
 | k3s-lb-02     | 192.168.100.99  | 1 vCPU, 2 GB, 20 GB vDisk   |
 | k3s-worker-01 | 192.168.100.101 | 6 vCPU, 16 GB, 100 GB vDisk |
 | k3s-worker-02 | 192.168.100.102 | 6 vCPU, 16 GB, 100 GB vDisk |
+
 The following update and hardening is done on each node once Ubuntu 24.04.4 LTS is installed:
 
 ```bash
