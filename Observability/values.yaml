@@ -1,0 +1,39 @@
+grafana:
+  enabled: true
+
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    hosts:
+      - grafana.loc
+      - grafana
+    path: /
+    pathType: Prefix
+
+  persistence:
+    enabled: true
+    storageClassName: local-path
+    accessModes:
+      - ReadWriteOnce
+    size: 5Gi
+
+  defaultDashboardsTimezone: browser
+
+prometheus:
+  enabled: true
+
+  prometheusSpec:
+    retention: 30d
+
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: local-path
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 50Gi
+
+alertmanager:
+  enabled: true

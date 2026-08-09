@@ -1,6 +1,6 @@
 # Logging
 
-Desire is to send infrastructure logs to a syslog receiver. Since each node is set up with a Ubuntu server minimal install, the steps are straightforward enough:
+Desire is to send infrastructure logs to a syslog receiver. Since each node is set up with a Ubuntu server minimal install, the steps are straightforward enough. Do these steps on every node of the cluster - control plane, worker and load balancers:
 
 ```bash
 # Apt update and upgrade, then install rsyslog

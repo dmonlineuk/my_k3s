@@ -32,9 +32,11 @@ sudo ufw allow 6443/tcp
 sudo ufw allow 2379:2380/tcp
 sudo ufw allow 8472/udp
 sudo ufw allow 10250/tcp
+sudo ufw allow 80/tcp
 sudo ufw enable
 ```
 
+---
 #### Restrict firewall rules by role
 
 This applies the etcd and kubelet ports to every VM. Better practice will be to adjust these generalised settings to allow from specific IP addresses and to be set on specific nodes. As the next hardening pass, allow etcd only between control planes, API access only to appropriate internal sources, and retain Flannel/kubelet rules only where required.
@@ -48,6 +50,8 @@ sudo ufw allow in on enp1s0 from 192.168.100.99 comment 'K3s LB VRRP peer'
 # On k3s-lb-02
 sudo ufw allow in on enp1s0 from 192.168.100.98 comment 'K3s LB VRRP peer'
 ```
+
+---
 ### Installing K3s
 
 The install is performed with this command: `curl -sfL https://get.k3s.io | sh -` but there are steps required to set up each box before installing.
@@ -62,6 +66,9 @@ It is important to understand this order of events:
 3. add a third server..
 
 It is possible to continue adding more nodes to the control plane, but it is expected the total number always be an odd value. The reason is out of scope of this document, but just imagine that every odd numbered node adds quorum tolerance, but every even node adds additional cost and complexity.
+
+---
+
 ## k3s-cp-01
 
 Initialise this node first. The other control plane nodes will attach themselves to this to form a cluster.
@@ -88,6 +95,9 @@ etcd-snapshot-retention: 14
 #### Back up snapshots off-host
 
 These snapshots are stored locally on the control-plane VM and ultimately share the Unraid host failure domain. Add an off-host or remote-object-store backup destination and a documented restore test.
+
+---
+
 ## k3s-cp-02, and k3s-cp-03
 
 Attach additional control plane nodes in turn, following these steps.
@@ -110,6 +120,9 @@ etcd-snapshot-retention: 14
 ```
 
 3. Install k3s with `curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="v1.36.2+k3s1" sh -`
+
+---
+
 ## k3s-lb-01, and k3s-lb-02
 
 Although the two load balancers have IP addresses of 192.168.100.98 and 192.168.100.99, the virtual IP (VIP) will be set to 192.168.100.100. Note also that the subnet mask for the home network is 255.255.0.0 therefore the CIDR range is /16 rather than the usually expected value of /24.
@@ -132,6 +145,23 @@ backend k3s_control_planes
     server k3s-cp-01 192.168.100.1:6443 check
     server k3s-cp-02 192.168.100.2:6443 check
     server k3s-cp-03 192.168.100.3:6443 check
+
+frontend k3s_ingress_http
+    bind *:80
+    mode http
+    option httplog
+    default_backend k3s_ingress
+
+backend k3s_ingress
+    mode http
+    balance roundrobin
+    option tcp-check
+
+    server k3s-cp-01 192.168.100.1:80 check
+    server k3s-cp-02 192.168.100.2:80 check
+    server k3s-cp-03 192.168.100.3:80 check
+    server k3s-worker-01 192.168.100.101:80 check
+    server k3s-worker-02 192.168.100.102:80 check
 ```
 
 ### k3s-lb-01
@@ -171,6 +201,8 @@ vrrp_instance K3S_API_VIP {
 }
 ```
 
+---
+
 ### k3s-lb-02
 
 This is set as the BACKUP, priority 100.
@@ -208,6 +240,8 @@ vrrp_instance K3S_API_VIP {
 }
 ```
 
+---
+
 ### Start the service
 
 On both load balancer machines, start the services with `sudo systemctl enable --now haproxy keepalived`
@@ -232,6 +266,8 @@ sudo systemctl status haproxy
 sudo systemctl restart keepalived
 sudo systemctl restart haproxy
 ```
+
+---
 
 ## k3s-worker-01, and k3s-worker-02
 
@@ -264,20 +300,27 @@ k3s-worker-01   Ready    worker               23m     v1.36.2+k3s1
 k3s-worker-02   Ready    worker               4m20s   v1.36.2+k3s1
 ```
 
+---
+
 ## DHCP and Hostnames
 
 These machines may be assigned static IP addresses, but this makes things murky for future troubleshooting, so the preference is static assignments to be made by our router's DHCP service. Also, using the Hosts feature to assign hostnames to the IP addresses helps with documenting the setup and giving us the ability to use memorable names for the nodes and the API VIP.
 
-| Host IP address | Hostname      | Domain name | PTR |
-| --------------- | ------------- | ----------- | --- |
-| 192.168.100.1   | k3s-cp-01     | loc         | Yes |
-| 192.168.100.2   | k3s-cp-02     | loc         | Yes |
-| 192.168.100.3   | k3s-cp-03     | loc         | Yes |
-| 192.168.100.98  | k3s-lb-01     | loc         | Yes |
-| 192.168.100.99  | k3s-lb-02     | loc         | Yes |
-| 192.168.100.100 | k3s-api       | loc         | Yes |
-| 192.168.100.101 | k3s-worker-01 | loc         | Yes |
-| 192.168.100.102 | k3s-worker-02 | loc         | Yes |
+| Host IP address | Hostname             | Domain name | PTR |
+| --------------- | -------------------- | ----------- | --- |
+| 192.168.100.1   | k3s-cp-01            | loc         | Yes |
+| 192.168.100.2   | k3s-cp-02            | loc         | Yes |
+| 192.168.100.3   | k3s-cp-03            | loc         | Yes |
+| 192.168.100.98  | k3s-lb-01            | loc         | Yes |
+| 192.168.100.99  | k3s-lb-02            | loc         | Yes |
+| 192.168.100.100 | k3s-api <sup>1</sup> | loc         | Yes |
+| 192.168.100.101 | k3s-worker-01        | loc         | Yes |
+| 192.168.100.102 | k3s-worker-02        | loc         | Yes |
+
+[^1]: Note that additional hostnames may be assigned to this IP in the future depending on the services deployed in the cluster.
+
+---
+
 ## Failover tests
 
 Run these only after confirming all five Kubernetes nodes are `Ready`. Do not stop more than one control-plane node at a time.
